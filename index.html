@@ -32,6 +32,43 @@ function renderAdmin(){const main=document.getElementById('main');const g=groups
 function renderAdminList(q){const qq=(q||'').toLowerCase();const selected=window.adminEquip||'';const arr=DATA.map((x,i)=>({...x,_i:i})).filter(x=>x.equipment===selected&&(!qq||x.item.toLowerCase().includes(qq)));if(!arr.length)return '<div class="empty">이 설비에 해당하는 점검항목이 없습니다.</div>';return arr.map((x,pos)=>`<div class="adminItem"><div class="name">${pos+1}. ${esc(x.item)}</div><div class="adminMeta">${esc(x.cycle)}</div><div class="adminBtns"><button type="button" data-edit="${x._i}">수정</button><button type="button" class="del" data-del="${x._i}">삭제</button></div><div class="moveBtns"><button type="button" data-up="${x._i}" ${pos===0?'disabled':''}>▲ 위로</button><button type="button" data-down="${x._i}" ${pos===arr.length-1?'disabled':''}>▼ 아래로</button></div></div>`).join('')}
 function bindAdminList(root){root.querySelectorAll('[data-edit]').forEach(b=>b.onclick=()=>editItem(+b.dataset.edit));root.querySelectorAll('[data-del]').forEach(b=>b.onclick=()=>{const i=+b.dataset.del;if(confirm(`이 점검항목을 삭제할까요?\n\n${DATA[i].item}`)){DATA.splice(i,1);saveData();render()}});root.querySelectorAll('[data-up]').forEach(b=>b.onclick=()=>moveItem(+b.dataset.up,-1));root.querySelectorAll('[data-down]').forEach(b=>b.onclick=()=>moveItem(+b.dataset.down,1))}
 function moveItem(i,dir){const equipment=DATA[i].equipment;const same=[];DATA.forEach((x,idx)=>{if(x.equipment===equipment)same.push(idx)});const pos=same.indexOf(i);const targetPos=pos+dir;if(pos<0||targetPos<0||targetPos>=same.length)return;const j=same[targetPos];[DATA[i],DATA[j]]=[DATA[j],DATA[i]];[state.checks[i],state.checks[j]]=[state.checks[j],state.checks[i]];saveData();saveState();render()}
+function editItem(i){
+  const item=DATA[i];
+  if(!item)return;
+  const old=document.getElementById('editModal');
+  if(old)old.remove();
+  const wrap=document.createElement('div');
+  wrap.id='editModal';
+  wrap.className='modalBackdrop';
+  wrap.innerHTML=`<div class="modal" role="dialog" aria-modal="true" aria-labelledby="editTitle">
+    <h2 id="editTitle">점검항목 수정</h2>
+    <div class="field"><label>설비명</label><input id="editEquip" value="${esc(item.equipment)}"></div>
+    <div class="field"><label>주기</label><select id="editCycle"><option value="일상">일상</option><option value="주간">주간</option><option value="월간">월간</option></select></div>
+    <div class="field"><label>점검항목</label><textarea id="editItem" rows="3">${esc(item.item)}</textarea></div>
+    <div class="modalActions"><button type="button" class="modalCancel" id="editCancel">취소</button><button type="button" class="modalSave" id="editSave">저장</button></div>
+  </div>`;
+  document.body.appendChild(wrap);
+  const cycleEl=wrap.querySelector('#editCycle');
+  cycleEl.value=['일상','주간','월간'].includes(item.cycle)?item.cycle:'일상';
+  wrap.querySelector('#editCancel').onclick=()=>wrap.remove();
+  wrap.addEventListener('click',e=>{if(e.target===wrap)wrap.remove()});
+  wrap.querySelector('#editSave').onclick=()=>{
+    const equipment=wrap.querySelector('#editEquip').value.trim();
+    const cycle=cycleEl.value;
+    const text=wrap.querySelector('#editItem').value.trim();
+    if(!equipment||!text){alert('설비명과 점검항목을 입력해주세요.');return;}
+    const oldEquipment=item.equipment;
+    item.equipment=equipment;
+    item.cycle=cycle;
+    item.item=text;
+    saveData();
+    if(oldEquipment!==equipment)window.adminEquip=equipment;
+    wrap.remove();
+    query='';
+    render();
+  };
+  setTimeout(()=>wrap.querySelector('#editItem').focus(),0);
+}
 function exportData(){const blob=new Blob([JSON.stringify(DATA,null,2)],{type:'application/json'});const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='설비점검_항목백업.json';a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1000)}
 function importData(e){const f=e.target.files?.[0];if(!f)return;const r=new FileReader();r.onload=()=>{try{const x=JSON.parse(r.result);if(!Array.isArray(x)||x.some(v=>!v.equipment||!v.cycle||!v.item))throw Error();if(confirm(`백업 파일의 ${x.length}개 항목으로 교체할까요?`)){DATA=x;saveData();render()}}catch(err){alert('올바른 설비점검 백업 파일이 아닙니다.')}};r.readAsText(f)}
 document.getElementById('homeBtn').onclick=()=>{view='check';current=null;query='';render()};document.getElementById('adminBtn').onclick=()=>{view='admin';current=null;query='';render()};render();if('serviceWorker' in navigator)navigator.serviceWorker.register('./sw.js').catch(()=>{});
